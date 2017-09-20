@@ -1,8 +1,9 @@
 import React from 'react';
-import { Motion, spring } from 'react-motion';
+import Motion from 'react-motion/lib/Motion';
+import spring from 'react-motion/lib/spring';
 import PropTypes from 'prop-types';
 
-class IconButton extends React.PureComponent {
+export default class IconButton extends React.PureComponent {
 
   static propTypes = {
     className: PropTypes.string,
@@ -11,12 +12,15 @@ class IconButton extends React.PureComponent {
     onClick: PropTypes.func,
     size: PropTypes.number,
     active: PropTypes.bool,
+    pressed: PropTypes.bool,
+    expanded: PropTypes.bool,
     style: PropTypes.object,
     activeStyle: PropTypes.object,
     disabled: PropTypes.bool,
     inverted: PropTypes.bool,
     animate: PropTypes.bool,
-    overlay: PropTypes.bool
+    overlay: PropTypes.bool,
+    tabIndex: PropTypes.string,
   };
 
   static defaultProps = {
@@ -24,7 +28,8 @@ class IconButton extends React.PureComponent {
     active: false,
     disabled: false,
     animate: false,
-    overlay: false
+    overlay: false,
+    tabIndex: '0',
   };
 
   handleClick = (e) =>  {
@@ -36,17 +41,14 @@ class IconButton extends React.PureComponent {
   }
 
   render () {
-    let style = {
+    const style = {
       fontSize: `${this.props.size}px`,
       width: `${this.props.size * 1.28571429}px`,
       height: `${this.props.size * 1.28571429}px`,
       lineHeight: `${this.props.size}px`,
-      ...this.props.style
+      ...this.props.style,
+      ...(this.props.active ? this.props.activeStyle : {}),
     };
-
-    if (this.props.active) {
-      style = { ...style, ...this.props.activeStyle };
-    }
 
     const classes = ['icon-button'];
 
@@ -67,7 +69,7 @@ class IconButton extends React.PureComponent {
     }
 
     if (this.props.className) {
-      classes.push(this.props.className)
+      classes.push(this.props.className);
     }
 
     return (
@@ -75,10 +77,14 @@ class IconButton extends React.PureComponent {
         {({ rotate }) =>
           <button
             aria-label={this.props.title}
+            aria-pressed={this.props.pressed}
+            aria-expanded={this.props.expanded}
             title={this.props.title}
             className={classes.join(' ')}
             onClick={this.handleClick}
-            style={style}>
+            style={style}
+            tabIndex={this.props.tabIndex}
+          >
             <i style={{ transform: `rotate(${rotate}deg)` }} className={`fa fa-fw fa-${this.props.icon}`} aria-hidden='true' />
           </button>
         }
@@ -87,5 +93,3 @@ class IconButton extends React.PureComponent {
   }
 
 }
-
-export default IconButton;

@@ -3,8 +3,6 @@ import { connect } from 'react-redux';
 import PropTypes from 'prop-types';
 import ImmutablePropTypes from 'react-immutable-proptypes';
 import { fetchStatus } from '../../actions/statuses';
-import Immutable from 'immutable';
-import EmbeddedStatus from '../../components/status';
 import MissingIndicator from '../../components/missing_indicator';
 import DetailedStatus from './components/detailed_status';
 import ActionBar from './components/action_bar';
@@ -13,51 +11,51 @@ import {
   favourite,
   unfavourite,
   reblog,
-  unreblog
+  unreblog,
+  pin,
+  unpin,
 } from '../../actions/interactions';
 import {
   replyCompose,
-  mentionCompose
+  mentionCompose,
 } from '../../actions/compose';
 import { deleteStatus } from '../../actions/statuses';
 import { initReport } from '../../actions/reports';
-import {
-  makeGetStatus,
-  getStatusAncestors,
-  getStatusDescendants
-} from '../../selectors';
+import { makeGetStatus } from '../../selectors';
 import { ScrollContainer } from 'react-router-scroll';
 import ColumnBackButton from '../../components/column_back_button';
 import StatusContainer from '../../containers/status_container';
 import { openModal } from '../../actions/modal';
-import { isMobile } from '../../is_mobile'
-import { defineMessages, injectIntl, FormattedMessage } from 'react-intl';
+import { defineMessages, injectIntl } from 'react-intl';
 import ImmutablePureComponent from 'react-immutable-pure-component';
 
 const messages = defineMessages({
   deleteConfirm: { id: 'confirmations.delete.confirm', defaultMessage: 'Delete' },
-  deleteMessage: { id: 'confirmations.delete.message', defaultMessage: 'Are you sure you want to delete this status?' }
+  deleteMessage: { id: 'confirmations.delete.message', defaultMessage: 'Are you sure you want to delete this status?' },
 });
 
 const makeMapStateToProps = () => {
   const getStatus = makeGetStatus();
 
   const mapStateToProps = (state, props) => ({
-    status: getStatus(state, Number(props.params.statusId)),
-    ancestorsIds: state.getIn(['timelines', 'ancestors', Number(props.params.statusId)]),
-    descendantsIds: state.getIn(['timelines', 'descendants', Number(props.params.statusId)]),
+    status: getStatus(state, props.params.statusId),
+    ancestorsIds: state.getIn(['contexts', 'ancestors', props.params.statusId]),
+    descendantsIds: state.getIn(['contexts', 'descendants', props.params.statusId]),
     me: state.getIn(['meta', 'me']),
     boostModal: state.getIn(['meta', 'boost_modal']),
-    autoPlayGif: state.getIn(['meta', 'auto_play_gif'])
+    deleteModal: state.getIn(['meta', 'delete_modal']),
+    autoPlayGif: state.getIn(['meta', 'auto_play_gif']),
   });
 
   return mapStateToProps;
 };
 
-class Status extends ImmutablePureComponent {
+@injectIntl
+@connect(makeMapStateToProps)
+export default class Status extends ImmutablePureComponent {
 
   static contextTypes = {
-    router: PropTypes.object
+    router: PropTypes.object,
   };
 
   static propTypes = {
@@ -66,19 +64,20 @@ class Status extends ImmutablePureComponent {
     status: ImmutablePropTypes.map,
     ancestorsIds: ImmutablePropTypes.list,
     descendantsIds: ImmutablePropTypes.list,
-    me: PropTypes.number,
+    me: PropTypes.string,
     boostModal: PropTypes.bool,
+    deleteModal: PropTypes.bool,
     autoPlayGif: PropTypes.bool,
-    intl: PropTypes.object.isRequired
+    intl: PropTypes.object.isRequired,
   };
 
   componentWillMount () {
-    this.props.dispatch(fetchStatus(Number(this.props.params.statusId)));
+    this.props.dispatch(fetchStatus(this.props.params.statusId));
   }
 
   componentWillReceiveProps (nextProps) {
     if (nextProps.params.statusId !== this.props.params.statusId && nextProps.params.statusId) {
-      this.props.dispatch(fetchStatus(Number(nextProps.params.statusId)));
+      this.props.dispatch(fetchStatus(nextProps.params.statusId));
     }
   }
 
@@ -90,8 +89,16 @@ class Status extends ImmutablePureComponent {
     }
   }
 
+  handlePin = (status) => {
+    if (status.get('pinned')) {
+      this.props.dispatch(unpin(status));
+    } else {
+      this.props.dispatch(pin(status));
+    }
+  }
+
   handleReplyClick = (status) => {
-    this.props.dispatch(replyCompose(status, this.context.router));
+    this.props.dispatch(replyCompose(status, this.context.router.history));
   }
 
   handleModalReblog = (status) => {
@@ -113,11 +120,15 @@ class Status extends ImmutablePureComponent {
   handleDeleteClick = (status) => {
     const { dispatch, intl } = this.props;
 
-    dispatch(openModal('CONFIRM', {
-      message: intl.formatMessage(messages.deleteMessage),
-      confirm: intl.formatMessage(messages.deleteConfirm),
-      onConfirm: () => dispatch(deleteStatus(status.get('id')))
-    }));
+    if (!this.props.deleteModal) {
+      dispatch(deleteStatus(status.get('id')));
+    } else {
+      dispatch(openModal('CONFIRM', {
+        message: intl.formatMessage(messages.deleteMessage),
+        confirm: intl.formatMessage(messages.deleteConfirm),
+        onConfirm: () => dispatch(deleteStatus(status.get('id'))),
+      }));
+    }
   }
 
   handleMentionClick = (account, router) => {
@@ -134,6 +145,10 @@ class Status extends ImmutablePureComponent {
 
   handleReport = (status) => {
     this.props.dispatch(initReport(status.get('account'), status));
+  }
+
+  handleEmbed = (status) => {
+    this.props.dispatch(openModal('EMBED', { url: status.get('url') }));
   }
 
   renderChildren (list) {
@@ -153,8 +168,6 @@ class Status extends ImmutablePureComponent {
       );
     }
 
-    const account = status.get('account');
-
     if (ancestorsIds && ancestorsIds.size > 0) {
       ancestors = <div>{this.renderChildren(ancestorsIds)}</div>;
     }
@@ -171,8 +184,26 @@ class Status extends ImmutablePureComponent {
           <div className='scrollable detailed-status__wrapper'>
             {ancestors}
 
-            <DetailedStatus status={status} autoPlayGif={autoPlayGif} me={me} onOpenVideo={this.handleOpenVideo} onOpenMedia={this.handleOpenMedia} />
-            <ActionBar status={status} me={me} onReply={this.handleReplyClick} onFavourite={this.handleFavouriteClick} onReblog={this.handleReblogClick} onDelete={this.handleDeleteClick} onMention={this.handleMentionClick} onReport={this.handleReport} />
+            <DetailedStatus
+              status={status}
+              autoPlayGif={autoPlayGif}
+              me={me}
+              onOpenVideo={this.handleOpenVideo}
+              onOpenMedia={this.handleOpenMedia}
+            />
+
+            <ActionBar
+              status={status}
+              me={me}
+              onReply={this.handleReplyClick}
+              onFavourite={this.handleFavouriteClick}
+              onReblog={this.handleReblogClick}
+              onDelete={this.handleDeleteClick}
+              onMention={this.handleMentionClick}
+              onReport={this.handleReport}
+              onPin={this.handlePin}
+              onEmbed={this.handleEmbed}
+            />
 
             {descendants}
           </div>
@@ -182,5 +213,3 @@ class Status extends ImmutablePureComponent {
   }
 
 }
-
-export default injectIntl(connect(makeMapStateToProps)(Status));

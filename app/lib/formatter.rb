@@ -9,7 +9,7 @@ class Formatter
 
   include ActionView::Helpers::TextHelper
 
-  def format(status, attribute = :text, paragraphize = true)
+  def format(status, options = {})
     if status.reblog?
       prepend_reblog = status.reblog.account.acct
       status         = status.proper
@@ -17,10 +17,13 @@ class Formatter
       prepend_reblog = false
     end
 
-    raw_content = status.public_send(attribute)
+    raw_content = status.text
 
-    return '' if raw_content.blank?
-    return reformat(raw_content) unless status.local?
+    unless status.local?
+      html = reformat(raw_content)
+      html = encode_custom_emojis(html, status.emojis) if options[:custom_emojify]
+      return html.html_safe # rubocop:disable Rails/OutputSafety
+    end
 
     linkable_accounts = status.mentions.map(&:account)
     linkable_accounts << status.account
@@ -28,19 +31,22 @@ class Formatter
     html = raw_content
     html = "RT @#{prepend_reblog} #{html}" if prepend_reblog
     html = encode_and_link_urls(html, linkable_accounts)
-    html = simple_format(html, {}, sanitize: false) if paragraphize
+    html = encode_custom_emojis(html, status.emojis) if options[:custom_emojify]
+    html = simple_format(html, {}, sanitize: false)
     html = html.delete("\n")
 
     html.html_safe # rubocop:disable Rails/OutputSafety
   end
 
   def reformat(html)
-    sanitize(html, Sanitize::Config::MASTODON_STRICT).html_safe # rubocop:disable Rails/OutputSafety
+    sanitize(html, Sanitize::Config::MASTODON_STRICT)
   end
 
   def plaintext(status)
     return status.text if status.local?
-    strip_tags(status.text)
+
+    text = status.text.gsub(/(<br \/>|<br>|<\/p>)+/) { |match| "#{match}\n" }
+    strip_tags(text)
   end
 
   def simplified_format(account)
@@ -77,6 +83,47 @@ class Formatter
     end
   end
 
+  def encode_custom_emojis(html, emojis)
+    return html if emojis.empty?
+
+    emoji_map = emojis.map { |e| [e.shortcode, full_asset_url(e.image.url)] }.to_h
+
+    i                     = -1
+    inside_tag            = false
+    inside_shortname      = false
+    shortname_start_index = -1
+
+    while i + 1 < html.size
+      i += 1
+
+      if inside_shortname && html[i] == ':'
+        shortcode = html[shortname_start_index + 1..i - 1]
+        emoji     = emoji_map[shortcode]
+
+        if emoji
+          replacement = "<img draggable=\"false\" class=\"emojione\" alt=\":#{shortcode}:\" title=\":#{shortcode}:\" src=\"#{emoji}\" />"
+          before_html = shortname_start_index.positive? ? html[0..shortname_start_index - 1] : ''
+          html        = before_html + replacement + html[i + 1..-1]
+          i          += replacement.size - (shortcode.size + 2) - 1
+        else
+          i -= 1
+        end
+
+        inside_shortname = false
+      elsif inside_tag && html[i] == '>'
+        inside_tag = false
+      elsif html[i] == '<'
+        inside_tag       = true
+        inside_shortname = false
+      elsif !inside_tag && html[i] == ':'
+        inside_shortname      = true
+        shortname_start_index = i
+      end
+    end
+
+    html
+  end
+
   def rewrite(text, entities)
     chars = text.to_s.to_char_a
 
@@ -105,7 +152,7 @@ class Formatter
     html_attrs     = { target: '_blank', rel: 'nofollow noopener' }
 
     Twitter::Autolink.send(:link_to_text, entity, link_html(entity[:url]), normalized_url, html_attrs)
-  rescue Addressable::URI::InvalidURIError
+  rescue Addressable::URI::InvalidURIError, IDN::Idna::IdnaError
     encode(entity[:url])
   end
 
@@ -132,13 +179,13 @@ class Formatter
   end
 
   def link_html(url)
-    url    = Addressable::URI.parse(url).display_uri.to_s
+    url    = Addressable::URI.parse(url).to_s
     prefix = url.match(/\Ahttps?:\/\/(www\.)?/).to_s
     text   = url[prefix.length, 30]
     suffix = url[prefix.length + 30..-1]
     cutoff = url[prefix.length..-1].length > 30
 
-    "<span class=\"invisible\">#{prefix}</span><span class=\"#{cutoff ? 'ellipsis' : ''}\">#{text}</span><span class=\"invisible\">#{suffix}</span>"
+    "<span class=\"invisible\">#{encode(prefix)}</span><span class=\"#{cutoff ? 'ellipsis' : ''}\">#{encode(text)}</span><span class=\"invisible\">#{encode(suffix)}</span>"
   end
 
   def hashtag_html(tag)

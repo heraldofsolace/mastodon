@@ -11,24 +11,25 @@ import ColumnBackButton from '../../components/column_back_button';
 import ImmutablePureComponent from 'react-immutable-pure-component';
 
 const mapStateToProps = (state, props) => ({
-  accountIds: state.getIn(['user_lists', 'favourited_by', Number(props.params.statusId)])
+  accountIds: state.getIn(['user_lists', 'favourited_by', props.params.statusId]),
 });
 
-class Favourites extends ImmutablePureComponent {
+@connect(mapStateToProps)
+export default class Favourites extends ImmutablePureComponent {
 
   static propTypes = {
     params: PropTypes.object.isRequired,
     dispatch: PropTypes.func.isRequired,
-    accountIds: ImmutablePropTypes.list
+    accountIds: ImmutablePropTypes.list,
   };
 
   componentWillMount () {
-    this.props.dispatch(fetchFavourites(Number(this.props.params.statusId)));
+    this.props.dispatch(fetchFavourites(this.props.params.statusId));
   }
 
-  componentWillReceiveProps(nextProps) {
+  componentWillReceiveProps (nextProps) {
     if (nextProps.params.statusId !== this.props.params.statusId && nextProps.params.statusId) {
-      this.props.dispatch(fetchFavourites(Number(nextProps.params.statusId)));
+      this.props.dispatch(fetchFavourites(nextProps.params.statusId));
     }
   }
 
@@ -57,5 +58,3 @@ class Favourites extends ImmutablePureComponent {
   }
 
 }
-
-export default connect(mapStateToProps)(Favourites);

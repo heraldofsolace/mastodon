@@ -1,13 +1,15 @@
 import React from 'react';
 import PropTypes from 'prop-types';
 
-class ExtendedVideoPlayer extends React.PureComponent {
+export default class ExtendedVideoPlayer extends React.PureComponent {
 
   static propTypes = {
     src: PropTypes.string.isRequired,
+    width: PropTypes.number,
+    height: PropTypes.number,
     time: PropTypes.number,
     controls: PropTypes.bool.isRequired,
-    muted: PropTypes.bool.isRequired
+    muted: PropTypes.bool.isRequired,
   };
 
   handleLoadedData = () => {
@@ -44,5 +46,3 @@ class ExtendedVideoPlayer extends React.PureComponent {
   }
 
 }
-
-export default ExtendedVideoPlayer;

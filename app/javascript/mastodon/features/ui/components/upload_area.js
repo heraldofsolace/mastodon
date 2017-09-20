@@ -1,23 +1,23 @@
 import React from 'react';
 import PropTypes from 'prop-types';
-import { Motion, spring } from 'react-motion';
+import Motion from 'react-motion/lib/Motion';
+import spring from 'react-motion/lib/spring';
 import { FormattedMessage } from 'react-intl';
 
-class UploadArea extends React.PureComponent {
+export default class UploadArea extends React.PureComponent {
 
   static propTypes = {
     active: PropTypes.bool,
-    onClose: PropTypes.func
+    onClose: PropTypes.func,
   };
 
   handleKeyUp = (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-
-    const keyCode = e.keyCode
+    const keyCode = e.keyCode;
     if (this.props.active) {
       switch(keyCode) {
       case 27:
+        e.preventDefault();
+        e.stopPropagation();
         this.props.onClose();
         break;
       }
@@ -50,5 +50,3 @@ class UploadArea extends React.PureComponent {
   }
 
 }
-
-export default UploadArea;

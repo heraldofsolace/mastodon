@@ -12,32 +12,29 @@ import { defineMessages, injectIntl } from 'react-intl';
 import ImmutablePureComponent from 'react-immutable-pure-component';
 
 const messages = defineMessages({
-  heading: { id: 'column.blocks', defaultMessage: 'Blocked users' }
+  heading: { id: 'column.blocks', defaultMessage: 'Blocked users' },
 });
 
 const mapStateToProps = state => ({
-  accountIds: state.getIn(['user_lists', 'blocks', 'items'])
+  accountIds: state.getIn(['user_lists', 'blocks', 'items']),
 });
 
-class Blocks extends ImmutablePureComponent {
+@connect(mapStateToProps)
+@injectIntl
+export default class Blocks extends ImmutablePureComponent {
 
   static propTypes = {
     params: PropTypes.object.isRequired,
     dispatch: PropTypes.func.isRequired,
     accountIds: ImmutablePropTypes.list,
-    intl: PropTypes.object.isRequired
+    intl: PropTypes.object.isRequired,
   };
-
-  constructor (props, context) {
-    super(props, context);
-    this.handleScroll = this.handleScroll.bind(this);
-  }
 
   componentWillMount () {
     this.props.dispatch(fetchBlocks());
   }
 
-  handleScroll (e) {
+  handleScroll = (e) => {
     const { scrollTop, scrollHeight, clientHeight } = e.target;
 
     if (scrollTop === scrollHeight - clientHeight) {
@@ -69,6 +66,5 @@ class Blocks extends ImmutablePureComponent {
       </Column>
     );
   }
-}
 
-export default connect(mapStateToProps)(injectIntl(Blocks));
+}

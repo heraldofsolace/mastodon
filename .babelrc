@@ -14,14 +14,16 @@
   ],
   "plugins": [
     "syntax-dynamic-import",
-    "transform-object-rest-spread",
+    ["transform-object-rest-spread", { "useBuiltIns": true }],
+    "transform-decorators-legacy",
     "transform-class-properties",
     [
       "react-intl",
       {
         "messagesDir": "./build/messages"
       }
-    ]
+    ],
+    "preval"
   ],
   "env": {
     "development": {
@@ -32,7 +34,26 @@
     },
     "production": {
       "plugins": [
-        "lodash"
+        "lodash",
+        [
+          "transform-react-remove-prop-types",
+          {
+            "mode": "remove",
+            "removeImport": true,
+            "additionalLibraries": [
+              "react-immutable-proptypes"
+            ]
+          }
+        ],
+        "transform-react-inline-elements",
+        [
+          "transform-runtime",
+          {
+            "helpers": true,
+            "polyfill": false,
+            "regenerator": false
+          }
+        ]
       ]
     },
     "test": {
